@@ -1,208 +1,174 @@
+# Jarvis/jarvis.py — Server-friendly (Option A)
 import pyttsx3
 import datetime
-import speech_recognition as sr
 import wikipedia
 import webbrowser as wb
 import os
 import random
 import pyjokes
-from PIL import ImageGrab  # Only works on Windows, so we fallback on server
+import time
+
+# inside wishme()
+speak("Welcome back, sir!")
+print("Welcome back, sir!")
+# add:
+print("Deployed by Puja Nanekar — EC2 Demo")
+speak("Deployed by Puja Nanekar — EC2 Demo")
 
 engine = pyttsx3.init()
 voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[0].id)
+# choose a default voice; index might vary per platform
+if len(voices) > 1:
+    engine.setProperty('voice', voices[1].id)
 engine.setProperty('rate', 150)
 engine.setProperty('volume', 1)
 
+COMMAND_FILE = os.path.expanduser("~/jarvis_command.txt")  # single-line command file
 
 def speak(audio) -> None:
-    engine.say(audio)
-    engine.runAndWait()
+    try:
+        engine.say(audio)
+        engine.runAndWait()
+    except Exception as e:
+        # TTS maybe unavailable on server; just print
+        print("TTS error:", e)
+        print("SPEAK:", audio)
 
+def log(msg: str) -> None:
+    print(f"[{datetime.datetime.now().isoformat()}] {msg}")
 
-def time() -> None:
+def time_cmd() -> None:
     current_time = datetime.datetime.now().strftime("%I:%M:%S %p")
-    speak("The current time is")
-    speak(current_time)
-    print("The current time is", current_time)
+    speak("The current time is " + current_time)
+    log("Time requested -> " + current_time)
 
-
-def date() -> None:
+def date_cmd() -> None:
     now = datetime.datetime.now()
-    speak("The current date is")
-    speak(f"{now.day} {now.strftime('%B')} {now.year}")
-    print(f"The current date is {now.day}/{now.month}/{now.year}")
-
+    speak(f"The current date is {now.day} {now.strftime('%B')} {now.year}")
+    log("Date requested -> " + f"{now.day}/{now.month}/{now.year}")
 
 def wishme() -> None:
-    speak("Welcome back!")
-    print("Welcome back!")
-
-    hour = datetime.datetime.now().hour
-    if 4 <= hour < 12:
-        speak("Good morning!")
-    elif 12 <= hour < 16:
-        speak("Good afternoon!")
-    elif 16 <= hour < 24:
-        speak("Good evening!")
-    else:
-        speak("Good night, see you tomorrow.")
-
-    assistant_name = load_name()
-    speak(f"{assistant_name} at your service. Please tell me how may I help you.")
-    print(f"{assistant_name} at your service. Please tell me how may I help you.")
-
-
-def screenshot() -> None:
-    """Headless-safe screenshot function"""
-    try:
-        img = ImageGrab.grab()   # Works on Windows only
-        img_path = os.path.expanduser("~/screenshot.png")
-        img.save(img_path)
-        speak(f"Screenshot saved at {img_path}")
-        print(f"Screenshot saved at {img_path}")
-    except Exception:
-        speak("Screenshot feature is unavailable on this device.")
-        print("Screenshot not supported on server.")
-
-
-def takecommand() -> str:
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("Listening...")
-        r.pause_threshold = 1
-
-        try:
-            audio = r.listen(source, timeout=5)
-        except sr.WaitTimeoutError:
-            speak("Timeout occurred. Please try again.")
-            return None
-
-    try:
-        print("Recognizing...")
-        query = r.recognize_google(audio, language="en-in")
-        print(query)
-        return query.lower()
-
-    except sr.UnknownValueError:
-        speak("Sorry, I did not understand that.")
-        return None
-
-    except sr.RequestError:
-        speak("Speech service unavailable.")
-        return None
-
-    except Exception as e:
-        speak(f"An error occurred: {e}")
-        print(e)
-        return None
-
+    # visible UI/text change for project
+    log("Welcome back, sir!")
+    log("Deployed by Puja Nanekar — EC2 Demo")
+    speak("Welcome back. Deployed by Puja Nanekar. Jarvis at your service.")
 
 def play_music(song_name=None) -> None:
     music_dir = os.path.expanduser("~/Music")
-
     if not os.path.exists(music_dir):
         speak("Music folder not found.")
         return
-
     songs = os.listdir(music_dir)
-
     if song_name:
-        songs = [s for s in songs if song_name.lower() in s.lower()]
-
+        songs = [song for song in songs if song_name.lower() in song.lower()]
     if songs:
         song = random.choice(songs)
         song_path = os.path.join(music_dir, song)
-
-        # Linux-compatible open
-        os.system(f"xdg-open '{song_path}'")
-
+        os.system(f'xdg-open "{song_path}" >/dev/null 2>&1 || true')
         speak(f"Playing {song}")
-        print(f"Playing {song}")
-
+        log("Playing music: " + song)
     else:
         speak("No songs found.")
-        print("No songs found.")
-
-
-def set_name() -> None:
-    speak("What would you like to name me?")
-    name = takecommand()
-    if name:
-        with open("assistant_name.txt", "w") as f:
-            f.write(name)
-        speak(f"Alright, I will be called {name} from now on.")
-    else:
-        speak("Sorry, I couldn't catch that.")
-
-
-def load_name() -> str:
-    try:
-        with open("assistant_name.txt", "r") as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return "Jarvis"
-
+        log("No songs found in Music folder.")
 
 def search_wikipedia(query):
     try:
         speak("Searching Wikipedia...")
         result = wikipedia.summary(query, sentences=2)
         speak(result)
-        print(result)
-    except:
+        log("Wikipedia: " + result)
+    except Exception as e:
         speak("I couldn't find anything on Wikipedia.")
+        log("Wikipedia error: " + str(e))
 
+def set_name(newname):
+    try:
+        with open(os.path.expanduser("~/assistant_name.txt"), "w") as f:
+            f.write(newname)
+        speak(f"Alright, I will be called {newname} from now on.")
+        log("Assistant name set to: " + newname)
+    except Exception as e:
+        log("Error setting name: " + str(e))
+
+def load_name():
+    try:
+        with open(os.path.expanduser("~/assistant_name.txt"), "r") as f:
+            return f.read().strip()
+    except:
+        return "Jarvis"
+
+def process_command_text(cmd: str) -> None:
+    """cmd is a single-line lowercase string. Example:
+       time
+       date
+       wikipedia who is alan turing
+       play music happy
+       set name jarvis2
+       open youtube
+       joke
+       shutdown (won't actually shutdown server; will just log)
+    """
+    if not cmd:
+        return
+    cmd = cmd.strip()
+    log("Processing command: " + cmd)
+    if cmd == "time":
+        time_cmd()
+    elif cmd == "date":
+        date_cmd()
+    elif cmd.startswith("wikipedia"):
+        query = cmd.replace("wikipedia", "", 1).strip()
+        if query:
+            search_wikipedia(query)
+        else:
+            speak("Please provide wiki query.")
+    elif cmd.startswith("play music"):
+        song = cmd.replace("play music", "", 1).strip()
+        play_music(song if song else None)
+    elif cmd.startswith("set name"):
+        name = cmd.replace("set name", "", 1).strip()
+        if name:
+            set_name(name)
+    elif cmd == "open youtube":
+        wb.open("https://youtube.com")
+        speak("Opening YouTube.")
+    elif cmd == "joke" or "tell me a joke" in cmd:
+        joke = pyjokes.get_joke()
+        speak(joke)
+        log("Joke told: " + joke)
+    elif cmd == "status":
+        speak("Jarvis is running.")
+    elif cmd == "shutdown":
+        speak("Shutdown command received. Not shutting down server for safety.")
+        log("Shutdown requested but ignored on server.")
+    else:
+        speak("Unknown command: " + cmd)
+        log("Unknown command: " + cmd)
+
+def read_and_clear_command_file() -> str:
+    try:
+        if os.path.exists(COMMAND_FILE):
+            with open(COMMAND_FILE, "r") as f:
+                content = f.read().strip()
+            # clear file after reading
+            open(COMMAND_FILE, "w").close()
+            return content
+        return ""
+    except Exception as e:
+        log("Error reading command file: " + str(e))
+        return ""
 
 if __name__ == "__main__":
     wishme()
+    assistant_name = load_name()
+    log(f"{assistant_name} at your service. Waiting for commands (write single-line command to {COMMAND_FILE})")
+    # make sure command file exists
+    open(COMMAND_FILE, "a").close()
 
     while True:
-        query = takecommand()
-        if not query:
-            continue
-
-        if "time" in query:
-            time()
-
-        elif "date" in query:
-            date()
-
-        elif "wikipedia" in query:
-            query = query.replace("wikipedia", "").strip()
-            search_wikipedia(query)
-
-        elif "play music" in query:
-            song_name = query.replace("play music", "").strip()
-            play_music(song_name)
-
-        elif "open youtube" in query:
-            wb.open("youtube.com")
-
-        elif "open google" in query:
-            wb.open("google.com")
-
-        elif "change your name" in query:
-            set_name()
-
-        elif "screenshot" in query:
-            screenshot()
-
-        elif "tell me a joke" in query:
-            joke = pyjokes.get_joke()
-            speak(joke)
-            print(joke)
-
-        elif "shutdown" in query:
-            speak("Shutting down the system.")
-            os.system("shutdown now")
-            break
-
-        elif "restart" in query:
-            speak("Restarting system.")
-            os.system("reboot")
-            break
-
-        elif "exit" in query or "offline" in query:
-            speak("Going offline, goodbye!")
-            break
+        cmd = read_and_clear_command_file()
+        if cmd:
+            process_command_text(cmd.lower())
+        # heartbeat log every 30 sec so Jenkins/console shows it's alive
+        log("Heartbeat - waiting for commands...")
+        time.sleep(30)
