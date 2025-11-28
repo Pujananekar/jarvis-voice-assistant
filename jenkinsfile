@@ -6,7 +6,8 @@ pipeline {
         REMOTE_HOST = "3.110.207.105"
         REMOTE_DIR  = "/home/ubuntu/jarvis"
         SSH_OPTS    = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-        CRED_ID     = "jarvis-key"
+        CRED_ID     = "jarvis-ssh-key"
+
         SERVICE_NAME = "jarvis.service"
     }
 
